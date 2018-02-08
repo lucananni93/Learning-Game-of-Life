@@ -8,8 +8,8 @@ ON = 1
 OFF = 0
 INITIAL_DENSITY = 0.3
 
-HEIGHT = 1000
-WIDTH = 1000
+HEIGHT = 10
+WIDTH = 10
 
 conv_kernel = np.array([[1, 1, 1],
                         [1, 0, 1],
