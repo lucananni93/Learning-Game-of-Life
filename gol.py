@@ -1,38 +1,16 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import animation
-from scipy.signal import convolve2d
+from grid import get_density, grid_to_number, is_periodic, update_grid, init_grid
+import bisect
 
 
-ON = 1
-OFF = 0
 INITIAL_DENSITY = 0.4
 
-HEIGHT = 50
-WIDTH = 50
+HEIGHT = 20
+WIDTH = 20
 
-conv_kernel = np.array([[1, 1, 1],
-                        [1, 0, 1],
-                        [1, 1, 1]])
-
-
-def init_grid(height, width, init_density):
-    grid = np.random.choice([OFF, ON], size=(height, width), p=[
-                            1 - init_density, init_density])
-    return grid
-
-
-def update_grid(grid):
-    count_grid = convolve2d(grid, conv_kernel, "same")
-    result_grid = np.zeros_like(grid)
-
-    result_grid[(count_grid == 2) & (grid == ON)] = ON
-    result_grid[(count_grid == 3)] = ON
-    return result_grid
-
-
-def get_density(grid):
-    return np.count_nonzero(grid) / grid.size
+logging = "{:>20}{:>20}{:>20}"
 
 
 def main():
@@ -41,16 +19,31 @@ def main():
     density = get_density(grid)
     mat = ax[0].matshow(grid, cmap=plt.cm.gray_r)
     densities = [density]
+    state_ids = [grid_to_number(grid)]
     line, = ax[1].plot([0], densities)
+    detected_periodicity = is_periodic(state_ids)
+    print(logging.format(0, density, detected_periodicity))
 
     ax[1].set_ylim(0, 1)
     ax[1].set_xlim(0, 50)
 
+    # generator of frames that stops when a periodicity is detected
+    def gen():
+        nonlocal detected_periodicity
+        i = 0
+        while not detected_periodicity:
+            i += 1
+            yield i
+
     def update(i):
-        nonlocal grid, densities
+        nonlocal grid, densities, state_ids, detected_periodicity
         updated_grid = update_grid(grid)
         updated_density = get_density(updated_grid)
+        updated_state_id = grid_to_number(updated_grid)
         densities.append(updated_density)
+        # we insert the state ids sorted in order to speed up the
+        # periodicity detection
+        bisect.insort(state_ids, updated_state_id)
         n = len(densities)
         xmin, xmax = ax[1].get_xlim()
         if n >= xmax:
@@ -59,9 +52,13 @@ def main():
         mat.set_data(updated_grid)
         line.set_data(np.arange(n), densities)
         grid = updated_grid
+
+        detected_periodicity = is_periodic(state_ids)
+        print(logging.format(i, updated_density, detected_periodicity))
+
         return [mat, line]
 
-    ani = animation.FuncAnimation(fig, update, interval=50, blit=True)
+    ani = animation.FuncAnimation(fig, update, frames=gen, interval=50, blit=True)
     plt.show()
 
 
